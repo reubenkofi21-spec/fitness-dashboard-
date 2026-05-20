@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>APEX — Fitness OS</title>
+
+<!-- Premium-aber-ruhige Typo: Inter Tight + JetBrains Mono für Tabular -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Tailwind Play CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React + Babel (kein Build) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+<style>
+  :root{
+    --bg:        #0b0c0e;     /* off-black */
+    --bg-2:      #111316;     /* graphite */
+    --surface:   #16181c;     /* card */
+    --surface-2: #1c1f24;     /* elevated */
+    --line:      rgba(255,255,255,0.06);
+    --line-2:    rgba(255,255,255,0.10);
+    --text:      #f5f6f7;
+    --text-2:    #a5a9b0;
+    --text-3:    #71757c;
+    --accent:    #c6ff3a;     /* electric lime — primary performance accent */
+    --accent-ink:#0b0c0e;
+    --blue:      #6aa1ff;     /* nutrition */
+    --teal:      #4fd0c1;     /* recovery */
+    --amber:     #f0b454;     /* supplements */
+    --red:       #ff5a5f;     /* warning / dringend */
+  }
+  html,body{ background:var(--bg); color:var(--text); }
+  body{
+    font-family:'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"ss01","cv11";
+  }
+  .font-mono{ font-family:'JetBrains Mono', ui-monospace, monospace; }
+  .tabular{ font-variant-numeric: tabular-nums; }
+
+  /* Selection */
+  ::selection{ background:var(--accent); color:var(--accent-ink); }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.08); border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,.16); }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  .no-scrollbar::-webkit-scrollbar{ display:none; }
+  .no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
+
+  /* Card glass-elevated */
+  .card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+  }
+  .card-2{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+
+  /* Subtle elevation for hero */
+  .hero-grad{
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgba(198,255,58,0.10), transparent 50%),
+      radial-gradient(80% 60% at 100% 0%, rgba(106,161,255,0.07), transparent 55%),
+      linear-gradient(180deg, #14171c, #0e1014);
+  }
+
+  /* Ring focus */
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+  /* Range slider styling */
+  input[type=range]{ -webkit-appearance:none; appearance:none; background:transparent; }
+  input[type=range]::-webkit-slider-runnable-track{ height:4px; background:rgba(255,255,255,.12); border-radius:99px; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:99px; background:var(--accent); margin-top:-6px; cursor:pointer; box-shadow:0 0 0 4px rgba(198,255,58,.18); }
+  input[type=range]::-moz-range-track{ height:4px; background:rgba(255,255,255,.12); border-radius:99px; }
+  input[type=range]::-moz-range-thumb{ width:16px; height:16px; border:0; border-radius:99px; background:var(--accent); cursor:pointer; }
+
+  /* Numeric inputs without spinner */
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type=number]{ -moz-appearance:textfield; }
+
+  /* Light reveal */
+  @keyframes riseIn { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)} }
+  .rise{ animation: riseIn .35s cubic-bezier(.2,.7,.2,1) both; }
+
+  /* Live dot */
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(198,255,58,.6)} 70%{box-shadow:0 0 0 10px rgba(198,255,58,0)} 100%{box-shadow:0 0 0 0 rgba(198,255,58,0)} }
+  .live-dot{ animation: pulse 1.8s infinite; }
+
+  /* Toast */
+  @keyframes toastIn{ from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+  .toast{ animation: toastIn .2s ease both; }
+</style>
+</head>
+
+<body class="min-h-screen">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ============================================================
+   APEX — Fitness OS
+   Sections: Dashboard · Workouts · Wochenplan · Übungen ·
+             Ernährung · Supplements · Insights · Progress · Kategorien
+   Datenmodell aus dem Original übernommen.
+   ============================================================ */
+
+// ───────────────────────── ICONS ─────────────────────────
+const Icon = ({ name, className = "w-4 h-4", stroke = 1.6 }) => {
+  const p = { fill:"none", stroke:"currentColor", strokeWidth:stroke, strokeLinecap:"round", strokeLinejoin:"round", viewBox:"0 0 24 24", className };
+  switch(name){
+    case "dashboard": return <svg {...p}><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>;
+    case "workout":   return <svg {...p}><path d="M6.5 6.5 17.5 17.5"/><path d="M4 9l2-2"/><path d="M20 15l-2 2"/><path d="M3 6l3 3"/><path d="M18 18l3 3"/><path d="M6 3l3 3"/><path d="M15 18l3 3"/></svg>;
+    case "calendar":  return <svg {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>;
+    case "list":      return <svg {...p}><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>;
+    case "nutrition": return <svg {...p}><path d="M12 3c5 0 8 4 8 9 0 4-3 9-8 9s-8-5-8-9c0-5 3-9 8-9z"/><path d="M12 8v8M8 12h8"/></svg>;
+    case "supp":      return <svg {...p}><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M12 9v6"/></svg>;
+    case "insights":  return <svg {...p}><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>;
+    case "progress":  return <svg {...p}><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4M12 15V9M16 15V7"/></svg>;
+    case "category":  return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
+    case "plus":      return <svg {...p}><path d="M12 5v14M5 12h14"/></svg>;
+    case "check":     return <svg {...p}><path d="M5 12l5 5L20 7"/></svg>;
+    case "arrow":     return <svg {...p}><path d="M5 12h14M13 6l6 6-6 6"/></svg>;
+    case "trend":     return <svg {...p}><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>;
+    case "fire":      return <svg {...p}><path d="M12 3s5 4 5 9a5 5 0 1 1-10 0c0-2 1-3 1-3s2 2 4-1c0-3 0-5 0-5z"/></svg>;
+    case "clock":     return <svg {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+    case "x":         return <svg {...p}><path d="M6 6l12 12M18 6L6 18"/></svg>;
+    case "drop":      return <svg {...p}><path d="M12 3s-6 7-6 12a6 6 0 0 0 12 0c0-5-6-12-6-12z"/></svg>;
+    case "edit":      return <svg {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>;
+    case "trash":     return <svg {...p}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>;
+    case "search":    return <svg {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
+    case "play":      return <svg {...p}><path d="M7 5v14l12-7z"/></svg>;
+    case "minus":     return <svg {...p}><path d="M5 12h14"/></svg>;
+    case "menu":      return <svg {...p}><path d="M4 6h16M4 12h16M4 18h16"/></svg>;
+    default: return null;
+  }
+};
+
+// ───────────────────────── HELPERS ─────────────────────────
+const fmtDate = (d) => d.toISOString().split("T")[0];
+const todayStr = () => fmtDate(new Date());
+const weekMonday = (d=new Date()) => { const x = new Date(d); const day = (x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const deDate  = (d) => new Date(d).toLocaleDateString("de-DE", { day:"numeric", month:"long" });
+const deDay   = (d) => new Date(d).toLocaleDateString("de-DE", { weekday:"long" });
+const uid = () => Math.random().toString(36).slice(2,9);
+
+// Persistence (in-memory only — keine browser storage erlaubt)
+const seed = {
+  cats: ["Push","Pull","Legs","Full Body","Cardio"],
+  muscles: ["Brust","Rücken","Beine","Schultern","Bizeps","Trizeps","Core","Waden","Gesäß"],
+  exercises: [
+    { id:"e1", name:"Bankdrücken Langhantel",  cat:"Push",     muscle:"Brust",     lastDate:"2026-05-18" },
+    { id:"e2", name:"Schrägbankdrücken KH",    cat:"Push",     muscle:"Brust",     lastDate:"2026-05-15" },
+    { id:"e3", name:"Schulterdrücken KH",      cat:"Push",     muscle:"Schultern", lastDate:"2026-05-15" },
+    { id:"e4", name:"Trizeps Pushdown",        cat:"Push",     muscle:"Trizeps",   lastDate:"2026-05-18" },
+    { id:"e5", name:"Klimmzüge breit",         cat:"Pull",     muscle:"Rücken",    lastDate:"2026-05-17" },
+    { id:"e6", name:"Langhantelrudern",        cat:"Pull",     muscle:"Rücken",    lastDate:"2026-05-17" },
+    { id:"e7", name:"Bizeps Curls KH",         cat:"Pull",     muscle:"Bizeps",    lastDate:"2026-05-17" },
+    { id:"e8", name:"Kniebeugen Langhantel",   cat:"Legs",     muscle:"Beine",     lastDate:"2026-05-19" },
+    { id:"e9", name:"Rumänisches Kreuzheben",  cat:"Legs",     muscle:"Beine",     lastDate:"2026-05-19" },
+    { id:"e10",name:"Wadenheben stehend",      cat:"Legs",     muscle:"Waden",     lastDate:"2026-04-30" },
+    { id:"e11",name:"Plank",                   cat:"Full Body",muscle:"Core",      lastDate:"2026-05-12" },
+    { id:"e12",name:"Laufband Intervalle",     cat:"Cardio",   muscle:"Beine",     lastDate:"2026-05-16" },
+  ],
+  // sets[exId] = [{date, weight, reps, rpe, pr}]
+  sets: {
+    e1: [
+      { date:"2026-04-20", weight: 90, reps:5, rpe:8, pr:false },
+      { date:"2026-04-27", weight: 92.5, reps:5, rpe:8, pr:false },
+      { date:"2026-05-04", weight: 95, reps:5, rpe:8.5, pr:false },
+      { date:"2026-05-11", weight: 97.5, reps:5, rpe:9, pr:false },
+      { date:"2026-05-18", weight:100, reps:5, rpe:9, pr:true  },
+    ],
+    e5: [
+      { date:"2026-04-21", weight: 0, reps:8, rpe:7, pr:false, bw:true },
+      { date:"2026-04-28", weight: 5, reps:6, rpe:8, pr:false, bw:true },
+      { date:"2026-05-05", weight:10, reps:6, rpe:8, pr:false, bw:true },
+      { date:"2026-05-12", weight:15, reps:6, rpe:8.5, pr:false, bw:true },
+      { date:"2026-05-17", weight:20, reps:6, rpe:9, pr:true, bw:true },
+    ],
+    e8: [
+      { date:"2026-04-19", weight:120, reps:5, rpe:7.5, pr:false },
+      { date:"2026-04-26", weight:125, reps:5, rpe:8, pr:false },
+      { date:"2026-05-03", weight:130, reps:5, rpe:8.5, pr:false },
+      { date:"2026-05-10", weight:135, reps:5, rpe:9, pr:false },
+      { date:"2026-05-19", weight:140, reps:3, rpe:9.5, pr:true },
+    ],
+  },
+  // logs = Trainingseinheiten
+  logs: [
+    { id:"l1", date:"2026-05-19", name:"Beine schwer", cat:"Legs",  dur:75, exerciseIds:["e8","e9","e10"], notes:"Squat PR. Hüfte etwas eng." },
+    { id:"l2", date:"2026-05-18", name:"Push A",       cat:"Push",  dur:62, exerciseIds:["e1","e3","e4"],   notes:"Bench PR @ 100kg" },
+    { id:"l3", date:"2026-05-17", name:"Pull A",       cat:"Pull",  dur:58, exerciseIds:["e5","e6","e7"],   notes:"Pull-up PR @ +20kg" },
+    { id:"l4", date:"2026-05-16", name:"Cardio Z2",    cat:"Cardio",dur:35, exerciseIds:["e12"],            notes:"" },
+    { id:"l5", date:"2026-05-15", name:"Push B",       cat:"Push",  dur:55, exerciseIds:["e2","e3","e4"],   notes:"" },
+    { id:"l6", date:"2026-05-12", name:"Full Body",    cat:"Full Body", dur:50, exerciseIds:["e11","e1","e8"], notes:"" },
+  ],
+  // meals
+  meals: [
+    { id:"m1", date: todayStr(), name:"Oats + Whey + Beeren", kcal:680, p:48, c:78, f:14, time:"08:00" },
+    { id:"m2", date: todayStr(), name:"Reis + Hähnchen + Brokkoli", kcal:820, p:62, c:90, f:14, time:"13:15" },
+    { id:"m3", date: todayStr(), name:"Skyr + Honig + Nüsse", kcal:430, p:28, c:38, f:16, time:"16:30" },
+    { id:"m4", date: todayStr(), name:"Lachs + Süßkartoffel + Salat", kcal:920, p:58, c:72, f:34, time:"20:00" },
+  ],
+  nutritionGoals: { kcal:3500, p:200, c:400, f:110, water:3.0 },
+  water: 1.8,
+  // supplements
+  supplements: [
+    { id:"s1", name:"Whey Protein",      dose:"40 g",   time:"Post-Workout", taken:true,  stockDays:5,  type:"daily" },
+    { id:"s2", name:"Creatin Monohydrat",dose:"5 g",    time:"Morgens",      taken:true,  stockDays:48, type:"daily" },
+    { id:"s3", name:"Vitamin D3 + K2",   dose:"4000 IE",time:"Morgens",      taken:true,  stockDays:12, type:"daily" },
+    { id:"s4", name:"Omega 3",           dose:"2 g",    time:"Mittags",      taken:true,  stockDays:60, type:"daily" },
+    { id:"s5", name:"Magnesium",         dose:"400 mg", time:"Abends",       taken:false, stockDays:30, type:"daily" },
+    { id:"s6", name:"Koffein",           dose:"200 mg", time:"Pre-Workout",  taken:true,  stockDays:25, type:"training" },
+  ],
+  bodyWeight: [
+    { d:"2026-03-10", w:81.2 },
+    { d:"2026-03-24", w:81.8 },
+    { d:"2026-04-07", w:82.4 },
+    { d:"2026-04-21", w:82.9 },
+    { d:"2026-05-05", w:83.4 },
+    { d:"2026-05-19", w:83.6 },
+  ],
+  goals: [
+    { id:"g1", name:"Bankdrücken 110 kg",  current:"100 kg × 5", eta:"~4 Wochen", done:false },
+    { id:"g2", name:"10 Klimmzüge BW",     current:"8 BW",       eta:"~6 Wochen", done:false },
+    { id:"g3", name:"Körpergewicht 85 kg", current:"83.6 kg",    eta:"~5 Wochen", done:false },
+  ],
+  streak: 12,
+  weekGoal: 5,
+  plan: {
+    // Wochenplan-Vorlage (Mo–So)
+    template: [
+      { day:0, name:"Push A",  cat:"Push",     exerciseIds:["e1","e3","e4"], dur:60 },
+      { day:1, name:"Pull A",  cat:"Pull",     exerciseIds:["e5","e6","e7"], dur:60 },
+      { day:2, name:"Rest",    cat:null,        exerciseIds:[],               dur:0  },
+      { day:3, name:"Beine",   cat:"Legs",     exerciseIds:["e8","e9","e10"],dur:70 },
+      { day:4, name:"Push B",  cat:"Push",     exerciseIds:["e2","e3","e4"], dur:55 },
+      { day:5, name:"Cardio Z2",cat:"Cardio",  exerciseIds:["e12"],          dur:35 },
+      { day:6, name:"Rest",    cat:null,        exerciseIds:[],               dur:0  },
+    ]
+  }
+};
+
+// Category color map
+const CAT_COLOR = {
+  "Push":      "var(--accent)",
+  "Pull":      "var(--blue)",
+  "Legs":      "var(--amber)",
+  "Full Body": "var(--teal)",
+  "Cardio":    "var(--red)",
+};
+const catBadge = (cat) => {
+  if(!cat) return "bg-white/5 text-white/40 border-white/10";
+  return ""; // wir nutzen inline-style mit CAT_COLOR
+};
+
+// ───────────────────────── APP CONTEXT ─────────────────────────
+const Ctx = React.createContext(null);
+const useApp = () => React.useContext(Ctx);
+
+function AppProvider({ children }){
+  const [S, setS] = useState(seed);
+  const [toast, setToast] = useState(null);
+
+  const notify = (msg) => {
+    setToast(msg);
+    setTimeout(()=>setToast(null), 2400);
+  };
+
+  // mutation helpers
+  const mut = (fn) => setS(prev => { const next = structuredClone(prev); fn(next); return next; });
+
+  // computed helpers
+  const helpers = useMemo(()=>({
+    logsInRange: (from, to) => S.logs.filter(l => l.date >= from && l.date <= to),
+    thisWeekLogs: () => {
+      const mon = fmtDate(weekMonday());
+      const sun = fmtDate(addDays(weekMonday(), 6));
+      return S.logs.filter(l => l.date >= mon && l.date <= sun);
+    },
+    musclesThisWeek: () => {
+      const mon = fmtDate(weekMonday());
+      const sun = fmtDate(addDays(weekMonday(), 6));
+      const logs = S.logs.filter(l => l.date >= mon && l.date <= sun);
+      const counts = {};
+      logs.forEach(l => l.exerciseIds.forEach(eid => {
+        const ex = S.exercises.find(e=>e.id===eid);
+        if(ex) counts[ex.muscle] = (counts[ex.muscle]||0)+1;
+      }));
+      return counts;
+    },
+    todayMeals: () => S.meals.filter(m => m.date === todayStr()),
+    todayMacros: () => {
+      const t = S.meals.filter(m => m.date === todayStr());
+      return t.reduce((a,m)=>({ kcal:a.kcal+m.kcal, p:a.p+m.p, c:a.c+m.c, f:a.f+m.f }), { kcal:0, p:0, c:0, f:0 });
+    },
+    suppCompliance: () => {
+      const total = S.supplements.length;
+      const taken = S.supplements.filter(s=>s.taken).length;
+      return { taken, total, pct: total ? Math.round(taken/total*100) : 0 };
+    },
+    bestExercise: () => {
+      // Liefere die Übung mit dem stärksten Zuwachs (kg) über letzten 30 Tage
+      let best = null;
+      Object.entries(S.sets).forEach(([eid, arr])=>{
+        if(arr.length < 2) return;
+        const last = arr[arr.length-1];
+        const first = arr[0];
+        const delta = last.weight - first.weight;
+        if(!best || delta > best.delta){
+          best = { id:eid, delta, last, first, name: S.exercises.find(e=>e.id===eid)?.name };
+        }
+      });
+      return best;
+    },
+  }), [S]);
+
+  return (
+    <Ctx.Provider value={{ S, setS, mut, notify, ...helpers }}>
+      {children}
+      <Toast msg={toast}/>
+    </Ctx.Provider>
+  );
+}
+
+function Toast({ msg }){
+  if(!msg) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] toast">
+      <div className="bg-[var(--surface-2)] border border-white/10 rounded-full px-5 py-3 text-sm shadow-2xl flex items-center gap-2">
+        <Icon name="check" className="w-4 h-4 text-[var(--accent)]" stroke={2.2}/>
+        {msg}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── SIDEBAR ─────────────────────────
+const NAV = [
+  { id:"dashboard",   label:"Dashboard",   icon:"dashboard", group:"Übersicht" },
+  { id:"workouts",    label:"Workouts",    icon:"workout",   group:"Training" },
+  { id:"plan",        label:"Wochenplan",  icon:"calendar",  group:"Training" },
+  { id:"exercises",   label:"Übungen",     icon:"list",      group:"Training" },
+  { id:"nutrition",   label:"Ernährung",   icon:"nutrition", group:"Tracking" },
+  { id:"supplements", label:"Supplements", icon:"supp",      group:"Tracking" },
+  { id:"insights",    label:"Insights",    icon:"insights",  group:"Analyse" },
+  { id:"progress",    label:"Progress",    icon:"progress",  group:"Analyse" },
+  { id:"categories",  label:"Kategorien",  icon:"category",  group:"System" },
+];
+
+function Sidebar({ view, setView, mobileOpen, setMobileOpen }){
+  const { S } = useApp();
+  const groups = useMemo(()=>{
+    const g = {};
+    NAV.forEach(n => { (g[n.group] ||= []).push(n); });
+    return g;
+  },[]);
+  return (
+    <>
+      <aside className={`fixed lg:static top-0 left-0 h-screen w-[240px] bg-[var(--bg-2)] border-r border-white/[0.06] z-50 flex flex-col transition-transform duration-300 ${mobileOpen ? "translate-x-0":"-translate-x-full lg:translate-x-0"}`}>
+        {/* Brand */}
+        <div className="px-5 pt-6 pb-5 border-b border-white/[0.06] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] flex items-center justify-center font-bold text-[13px]">A</div>
+            <div className="leading-tight">
+              <div className="font-semibold tracking-tight">APEX</div>
+              <div className="text-[10.5px] uppercase tracking-[0.18em] text-[var(--text-3)] font-mono">Fitness OS</div>
+            </div>
+          </div>
+          <button className="lg:hidden text-[var(--text-2)]" onClick={()=>setMobileOpen(false)}><Icon name="x" className="w-4 h-4"/></button>
+        </div>
+
+        {/* Nav groups */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+          {Object.entries(groups).map(([gname, items])=>(
+            <div key={gname}>
+              <div className="px-2.5 mb-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--text-3)] font-mono">{gname}</div>
+              {items.map(n => {
+                const active = view === n.id;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={()=>{ setView(n.id); setMobileOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13.5px] transition mb-0.5
+                      ${active ? "bg-white/[0.06] text-white" : "text-[var(--text-2)] hover:text-white hover:bg-white/[0.04]"}`}
+                  >
+                    <span className={active ? "text-[var(--accent)]" : "text-[var(--text-3)]"}>
+                      <Icon name={n.icon} className="w-4 h-4"/>
+                    </span>
+                    <span>{n.label}</span>
+                    {active && <span className="ml-auto w-1 h-4 rounded-full bg-[var(--accent)]"></span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Streak footer */}
+        <div className="p-3 border-t border-white/[0.06]">
+          <div className="card-2 px-3.5 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-white/[0.05] flex items-center justify-center text-[var(--accent)]">
+              <Icon name="fire" className="w-4 h-4"/>
+            </div>
+            <div className="leading-tight">
+              <div className="text-[18px] font-bold tabular">{S.streak}</div>
+              <div className="text-[10.5px] tracking-wide text-[var(--text-3)]">Tage Streak</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      {mobileOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/60" onClick={()=>setMobileOpen(false)}/>}
+    </>
+  );
+}
+
+// ───────────────────────── TOP BAR ─────────────────────────
+function TopBar({ view, setMobileOpen, onQuickAdd }){
+  const { S } = useApp();
+  const titleMap = {
+    dashboard:["Dashboard","Dein heutiger Überblick"],
+    workouts:["Workouts","Einheiten erfassen & nachverfolgen"],
+    plan:["Wochenplan","Trainingsplan dieser Woche"],
+    exercises:["Übungsbibliothek","Deine Bewegungen"],
+    nutrition:["Ernährung","Tages- und Wochenübersicht"],
+    supplements:["Supplements","Tägliche Einnahme & Vorrat"],
+    insights:["Insights","Performance & Trends"],
+    progress:["Progress","Gewichte, PRs und Verlauf"],
+    categories:["Kategorien","Trainingsstruktur"],
+  };
+  const [t, sub] = titleMap[view] || ["",""];
+  return (
+    <header className="sticky top-0 z-30 bg-[var(--bg)]/85 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="px-4 lg:px-8 py-4 flex items-center gap-3">
+        <button className="lg:hidden p-2 -ml-2 text-[var(--text-2)]" onClick={()=>setMobileOpen(true)}>
+          <Icon name="menu" className="w-5 h-5"/>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[20px] font-semibold tracking-tight truncate">{t}</h1>
+          <p className="text-[12.5px] text-[var(--text-3)] truncate">{sub}</p>
+        </div>
+        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[12.5px] text-[var(--text-2)] font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] live-dot"></span>
+          {new Date().toLocaleDateString("de-DE",{ weekday:"short", day:"numeric", month:"short" })}
+        </div>
+        <button
+          onClick={onQuickAdd}
+          className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3.5 py-2 text-[13px] font-semibold flex items-center gap-1.5 hover:brightness-95 transition"
+        >
+          <Icon name="plus" className="w-4 h-4" stroke={2.4}/>
+          <span className="hidden sm:inline">Quick Add</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ───────────────────────── REUSABLE BLOCKS ─────────────────────────
+function Stat({ label, value, sub, accent="var(--accent)", suffix }){
+  return (
+    <div className="card p-5">
+      <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-3)] font-mono">{label}</div>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <div className="text-[28px] font-bold tabular leading-none" style={{ color:accent }}>{value}</div>
+        {suffix && <div className="text-[13px] text-[var(--text-3)] font-mono">{suffix}</div>}
+      </div>
+      {sub && <div className="text-[12px] text-[var(--text-2)] mt-2">{sub}</div>}
+    </div>
+  );
+}
+
+function Bar({ value, max=100, color="var(--accent)", height=4 }){
+  const pct = Math.max(0, Math.min(100, (value/max)*100));
+  return (
+    <div className="w-full rounded-full bg-white/[0.06] overflow-hidden" style={{ height }}>
+      <div className="h-full rounded-full transition-all duration-500" style={{ width:`${pct}%`, background:color }}/>
+    </div>
+  );
+}
+
+function Ring({ value, size=72, stroke=6, color="var(--accent)", track="rgba(255,255,255,0.08)", label, sub }){
+  const r = (size - stroke)/2;
+  const c = 2*Math.PI*r;
+  const off = c - (Math.min(100,Math.max(0,value))/100)*c;
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width:size, height:size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} stroke={track} strokeWidth={stroke} fill="none"/>
+        <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}/>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-[15px] font-semibold tabular">{label ?? `${value}%`}</div>
+        {sub && <div className="text-[9.5px] tracking-wide text-[var(--text-3)] font-mono uppercase">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ title, sub, action }){
+  return (
+    <div className="flex items-end justify-between gap-3 mb-3">
+      <div>
+        <h2 className="text-[16px] font-semibold tracking-tight">{title}</h2>
+        {sub && <p className="text-[12px] text-[var(--text-3)] mt-0.5">{sub}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function CatChip({ cat, size="sm" }){
+  if(!cat) return <span className="text-[10.5px] font-mono tracking-wide px-2 py-1 rounded-md bg-white/[0.05] text-white/45 border border-white/[0.08]">REST</span>;
+  const color = CAT_COLOR[cat] || "var(--text-2)";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 font-mono tracking-wide rounded-md border ${size==="sm" ? "text-[10.5px] px-2 py-1" : "text-[12px] px-2.5 py-1.5"}`}
+      style={{ color, borderColor:`color-mix(in srgb, ${color} 30%, transparent)`, background:`color-mix(in srgb, ${color} 12%, transparent)` }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background:color }}/>
+      {cat.toUpperCase()}
+    </span>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 1) DASHBOARD
+// ═════════════════════════════════════════════════════════════
+function Dashboard({ go, onQuickAdd, openLog }){
+  const { S, thisWeekLogs, musclesThisWeek, todayMacros, suppCompliance } = useApp();
+  const wk = thisWeekLogs();
+  const macros = todayMacros();
+  const compliance = suppCompliance();
+  const mCounts = musclesThisWeek();
+
+  // Hero data
+  const today = new Date();
+  const greeting = today.getHours() < 12 ? "Guten Morgen" : today.getHours() < 18 ? "Guten Tag" : "Guten Abend";
+  const todayPlan = S.plan.template[(today.getDay()+6)%7];
+  const todayPlanEx = todayPlan.exerciseIds.map(id => S.exercises.find(e=>e.id===id)?.name).filter(Boolean);
+
+  // Weekly bar chart from logs
+  const mon = weekMonday();
+  const weekBars = useMemo(()=>{
+    return Array.from({length:7}, (_, i)=>{
+      const d = addDays(mon, i);
+      const ds = fmtDate(d);
+      const dlogs = S.logs.filter(l => l.date === ds);
+      const min = dlogs.reduce((a,b)=>a+b.dur, 0);
+      const cats = [...new Set(dlogs.map(l=>l.cat))];
+      const isToday = ds === todayStr();
+      return { ds, min, cats, isToday, label:["MO","DI","MI","DO","FR","SA","SO"][i] };
+    });
+  }, [S.logs, mon.getTime()]);
+  const maxMin = Math.max(90, ...weekBars.map(b=>b.min));
+
+  return (
+    <div className="rise">
+
+      {/* ── HERO ─────────────────────────────────────────── */}
+      <section className="card hero-grad relative overflow-hidden p-6 lg:p-8 mb-6">
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-7">
+            <div className="text-[11px] font-mono tracking-[0.18em] uppercase text-[var(--text-3)]">
+              {today.toLocaleDateString("de-DE",{ weekday:"long", day:"numeric", month:"long" })}
+            </div>
+            <h1 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-tight leading-[1.05]">
+              {greeting}, Reuben.
+            </h1>
+            <p className="mt-2 text-[var(--text-2)] text-[14.5px] max-w-lg">
+              {wk.length} von {S.weekGoal} Einheiten diese Woche.{" "}
+              {todayPlan.cat
+                ? <>Heute steht <span className="text-white font-medium">{todayPlan.name}</span> ({todayPlan.cat}) an.</>
+                : <>Heute ist ein <span className="text-white font-medium">Erholungstag</span>.</>
+              }
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button onClick={openLog} className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-4 py-2.5 text-[13px] font-semibold flex items-center gap-2 hover:brightness-95">
+                <Icon name="play" className="w-4 h-4" stroke={2.2}/> Einheit starten
+              </button>
+              <button onClick={()=>go("plan")} className="bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg px-4 py-2.5 text-[13px] font-medium">
+                Plan ansehen
+              </button>
+              <button onClick={onQuickAdd} className="bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg px-4 py-2.5 text-[13px] font-medium">
+                Quick Add
+              </button>
+            </div>
+          </div>
+
+          <div className="col-span-12 lg:col-span-5 grid grid-cols-3 gap-3">
+            <div className="card-2 p-4 flex flex-col items-center justify-center text-center">
+              <Ring value={Math.round(wk.length/S.weekGoal*100)} color="var(--accent)" label={`${wk.length}/${S.weekGoal}`} sub="Woche"/>
+              <div className="text-[11px] text-[var(--text-3)] mt-2 font-mono uppercase tracking-wider">Einheiten</div>
+            </div>
+            <div className="card-2 p-4 flex flex-col items-center justify-center text-center">
+              <Ring value={Math.round(macros.kcal/S.nutritionGoals.kcal*100)} color="var(--blue)" label={`${Math.round(macros.kcal/S.nutritionGoals.kcal*100)}%`} sub="kcal"/>
+              <div className="text-[11px] text-[var(--text-3)] mt-2 font-mono uppercase tracking-wider">Ernährung</div>
+            </div>
+            <div className="card-2 p-4 flex flex-col items-center justify-center text-center">
+              <Ring value={compliance.pct} color="var(--amber)" label={`${compliance.taken}/${compliance.total}`} sub="Supps"/>
+              <div className="text-[11px] text-[var(--text-3)] mt-2 font-mono uppercase tracking-wider">Compliance</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Today's focus */}
+        {todayPlan.cat && (
+          <div className="mt-6 pt-5 border-t border-white/[0.05] flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+            <CatChip cat={todayPlan.cat}/>
+            <span className="text-[var(--text-2)]">{todayPlan.dur} Min geplant</span>
+            <span className="text-[var(--text-3)]">·</span>
+            <span className="text-[var(--text-2)] truncate">{todayPlanEx.join(" · ") || "Übungen offen"}</span>
+          </div>
+        )}
+      </section>
+
+      {/* ── OVERVIEW STATS ──────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Stat label="Einheiten / Woche" value={wk.length} suffix={`/ ${S.weekGoal}`} sub={`${wk.reduce((a,b)=>a+b.dur,0)} Min Training`}/>
+        <Stat label="kcal heute" value={macros.kcal.toLocaleString("de-DE")} suffix={`/ ${S.nutritionGoals.kcal}`} sub={`${Math.round(macros.kcal/S.nutritionGoals.kcal*100)} % des Ziels`} accent="var(--blue)"/>
+        <Stat label="Protein heute" value={`${macros.p} g`} suffix={`/ ${S.nutritionGoals.p} g`} sub={`${Math.round(macros.p/S.nutritionGoals.p*100)} % des Ziels`} accent="var(--teal)"/>
+        <Stat label="Streak" value={S.streak} suffix="Tage" sub="Persönlicher Rekord: 21" accent="var(--amber)"/>
+      </div>
+
+      {/* ── ROW 2 ─────────────────────────────────────── */}
+      <div className="grid grid-cols-12 gap-3 mb-6">
+        {/* Weekly Activity */}
+        <div className="col-span-12 lg:col-span-8 card p-6">
+          <SectionTitle
+            title="Wochenaktivität"
+            sub="Trainingsminuten pro Tag"
+            action={
+              <button onClick={()=>go("plan")} className="text-[12px] text-[var(--text-2)] hover:text-white flex items-center gap-1">Wochenplan <Icon name="arrow" className="w-3.5 h-3.5"/></button>
+            }
+          />
+          <div className="mt-2 h-[180px] grid grid-cols-7 gap-2 items-end">
+            {weekBars.map(b=>(
+              <div key={b.ds} className="h-full flex flex-col items-center gap-2">
+                <div className="flex-1 w-full flex items-end justify-center">
+                  <div
+                    className="w-full max-w-[36px] rounded-t-md relative group transition-all"
+                    style={{
+                      height: `${Math.max((b.min/maxMin)*100, b.min>0 ? 6 : 2)}%`,
+                      background: b.min===0 ? "rgba(255,255,255,0.06)" : (b.isToday ? "var(--accent)" : "rgba(255,255,255,0.18)"),
+                    }}
+                  >
+                    {b.min>0 && (
+                      <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-[10.5px] font-mono tabular text-[var(--text-2)] opacity-0 group-hover:opacity-100 transition">
+                        {b.min} min
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className={`text-[11px] font-mono uppercase tracking-wider ${b.isToday ? "text-white" : "text-[var(--text-3)]"}`}>{b.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Today focus card */}
+        <div className="col-span-12 lg:col-span-4 card p-6">
+          <SectionTitle title="Heute" sub={todayPlan.cat ? "Empfohlener Fokus" : "Geplante Erholung"}/>
+          {todayPlan.cat ? (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+                     style={{ background:`color-mix(in srgb, ${CAT_COLOR[todayPlan.cat]} 15%, transparent)`, color:CAT_COLOR[todayPlan.cat] }}>
+                  <Icon name="workout" className="w-5 h-5"/>
+                </div>
+                <div>
+                  <div className="font-semibold text-[16px]">{todayPlan.name}</div>
+                  <div className="text-[12px] text-[var(--text-3)]">{todayPlan.dur} Min · {todayPlanEx.length} Übungen</div>
+                </div>
+              </div>
+              <ul className="space-y-1.5 mb-4">
+                {todayPlanEx.map((n,i)=>(
+                  <li key={i} className="flex items-center gap-2.5 text-[13px] text-[var(--text-2)]">
+                    <span className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-[10px] font-mono text-[var(--text-3)]">{i+1}</span>
+                    {n}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={openLog} className="w-full bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3 py-2.5 text-[13px] font-semibold hover:brightness-95">
+                Diese Einheit starten
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-6">
+              <div className="w-14 h-14 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
+                <Icon name="clock" className="w-5 h-5 text-[var(--text-3)]"/>
+              </div>
+              <div className="font-semibold">Recovery Tag</div>
+              <div className="text-[12.5px] text-[var(--text-3)] mt-1">Stretching, Spaziergang, viel Wasser.</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── ROW 3 ─────────────────────────────────────── */}
+      <div className="grid grid-cols-12 gap-3 mb-6">
+        {/* Recent logs */}
+        <div className="col-span-12 lg:col-span-7 card p-6">
+          <SectionTitle title="Letzte Einheiten" sub="Die zuletzt abgeschlossenen Workouts"
+            action={<button onClick={()=>go("workouts")} className="text-[12px] text-[var(--text-2)] hover:text-white flex items-center gap-1">Alle <Icon name="arrow" className="w-3.5 h-3.5"/></button>}
+          />
+          <div className="divide-y divide-white/[0.05]">
+            {S.logs.slice(0,5).map(l=>{
+              const exNames = l.exerciseIds.map(id=>S.exercises.find(e=>e.id===id)?.name).filter(Boolean).slice(0,3).join(" · ");
+              return (
+                <div key={l.id} className="flex items-center gap-3 py-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                       style={{ background:`color-mix(in srgb, ${CAT_COLOR[l.cat]||"#fff"} 12%, transparent)`, color:CAT_COLOR[l.cat]||"#fff" }}>
+                    <Icon name="workout" className="w-4 h-4"/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-[14px] truncate">{l.name}</div>
+                      <CatChip cat={l.cat}/>
+                    </div>
+                    <div className="text-[12px] text-[var(--text-3)] truncate mt-0.5">{exNames}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[13px] tabular font-medium">{l.dur} min</div>
+                    <div className="text-[11px] text-[var(--text-3)] font-mono">{new Date(l.date).toLocaleDateString("de-DE",{ day:"2-digit", month:"short" })}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Muscle coverage */}
+        <div className="col-span-12 lg:col-span-5 card p-6">
+          <SectionTitle title="Muskelgruppen" sub="Diese Woche trainiert"/>
+          <div className="grid grid-cols-2 gap-2">
+            {S.muscles.map(m=>{
+              const c = mCounts[m] || 0;
+              const color = c>=2 ? "var(--accent)" : c===1 ? "var(--amber)" : "rgba(255,255,255,0.10)";
+              return (
+                <div key={m} className="card-2 px-3 py-2.5 flex items-center justify-between">
+                  <div className="text-[13px]">{m}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-[10px] font-mono text-[var(--text-3)]">{c}×</div>
+                    <div className="flex gap-0.5">
+                      {[0,1,2].map(i=>(
+                        <span key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: i<Math.min(c,2)+(c>=2?1:0) ? color : "rgba(255,255,255,0.08)" }}/>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex items-center gap-4 text-[10.5px] font-mono text-[var(--text-3)]">
+            <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-[var(--accent)]"></i>2+ ×</span>
+            <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-[var(--amber)]"></i>1 ×</span>
+            <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-white/20"></i>0 ×</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ROW 4 ─────────────────────────────────────── */}
+      <div className="grid grid-cols-12 gap-3">
+        {/* Nutrition compact */}
+        <div className="col-span-12 lg:col-span-7 card p-6">
+          <SectionTitle title="Ernährung heute" sub={`${macros.kcal.toLocaleString("de-DE")} / ${S.nutritionGoals.kcal} kcal`}
+            action={<button onClick={()=>go("nutrition")} className="text-[12px] text-[var(--text-2)] hover:text-white flex items-center gap-1">Details <Icon name="arrow" className="w-3.5 h-3.5"/></button>}
+          />
+          <div className="space-y-3">
+            {[
+              { l:"Protein",       v:macros.p, g:S.nutritionGoals.p, u:"g", color:"var(--teal)" },
+              { l:"Kohlenhydrate", v:macros.c, g:S.nutritionGoals.c, u:"g", color:"var(--blue)" },
+              { l:"Fette",         v:macros.f, g:S.nutritionGoals.f, u:"g", color:"var(--amber)" },
+              { l:"Wasser",        v:S.water,  g:S.nutritionGoals.water, u:"L", color:"#6aa1ff" },
+            ].map(r=>(
+              <div key={r.l}>
+                <div className="flex items-center justify-between text-[12.5px] mb-1">
+                  <span className="text-[var(--text-2)]">{r.l}</span>
+                  <span className="tabular text-[var(--text-2)]"><span className="text-white font-medium">{r.v}</span> / {r.g} {r.u}</span>
+                </div>
+                <Bar value={r.v} max={r.g} color={r.color}/>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Supplements compact */}
+        <div className="col-span-12 lg:col-span-5 card p-6">
+          <SectionTitle title="Supplements heute" sub={`${compliance.taken} / ${compliance.total} eingenommen`}
+            action={<button onClick={()=>go("supplements")} className="text-[12px] text-[var(--text-2)] hover:text-white flex items-center gap-1">Alle <Icon name="arrow" className="w-3.5 h-3.5"/></button>}
+          />
+          <div className="space-y-1.5">
+            {S.supplements.slice(0,5).map(s=>(
+              <div key={s.id} className="flex items-center gap-3 py-2 border-b border-white/[0.04] last:border-0">
+                <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${s.taken ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-ink)]":"border-white/15"}`}>
+                  {s.taken && <Icon name="check" className="w-3 h-3" stroke={2.6}/>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px]">{s.name}</div>
+                  <div className="text-[11px] text-[var(--text-3)] font-mono">{s.dose} · {s.time}</div>
+                </div>
+                {s.stockDays <= 14 && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background:"color-mix(in srgb, var(--amber) 15%, transparent)", color:"var(--amber)" }}>
+                    {s.stockDays}d
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 2) WORKOUTS — Logbuch + Filter
+// ═════════════════════════════════════════════════════════════
+function Workouts({ openLog, openLogDetail }){
+  const { S } = useApp();
+  const [filter, setFilter] = useState("all");
+  const filtered = filter==="all" ? S.logs : S.logs.filter(l=>l.cat===filter);
+
+  return (
+    <div className="rise">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {["all","Push","Pull","Legs","Full Body","Cardio"].map(f=>{
+          const active = filter===f;
+          return (
+            <button key={f} onClick={()=>setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition border
+                ${active ? "bg-white text-black border-white" : "bg-white/[0.04] text-[var(--text-2)] border-white/[0.08] hover:bg-white/[0.08]"}`}
+            >
+              {f==="all" ? "Alle" : f}
+            </button>
+          );
+        })}
+        <button onClick={openLog} className="ml-auto bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold flex items-center gap-1.5 hover:brightness-95">
+          <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Neue Einheit
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {filtered.length === 0 && (
+          <div className="card p-10 text-center text-[var(--text-3)]">Keine Einheiten in dieser Kategorie.</div>
+        )}
+        {filtered.map(l=>{
+          const exs = l.exerciseIds.map(id=>S.exercises.find(e=>e.id===id)).filter(Boolean);
+          return (
+            <button key={l.id} onClick={()=>openLogDetail(l)} className="w-full card p-4 lg:p-5 hover:bg-white/[0.02] transition text-left">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                     style={{ background:`color-mix(in srgb, ${CAT_COLOR[l.cat]||"#fff"} 12%, transparent)`, color:CAT_COLOR[l.cat]||"#fff" }}>
+                  <Icon name="workout" className="w-5 h-5"/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <div className="font-semibold text-[15px]">{l.name}</div>
+                    <CatChip cat={l.cat}/>
+                  </div>
+                  <div className="text-[12.5px] text-[var(--text-2)] mt-1 truncate">
+                    {exs.map(e=>e.name).join(" · ")}
+                  </div>
+                  {l.notes && <div className="text-[12px] text-[var(--text-3)] mt-2 italic">"{l.notes}"</div>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[14px] font-medium tabular">{l.dur} min</div>
+                  <div className="text-[11px] text-[var(--text-3)] font-mono mt-0.5">
+                    {new Date(l.date).toLocaleDateString("de-DE",{ weekday:"short", day:"2-digit", month:"short" })}
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 3) WOCHENPLAN
+// ═════════════════════════════════════════════════════════════
+function Plan(){
+  const { S } = useApp();
+  const [offset, setOffset] = useState(0);
+  const mon = addDays(weekMonday(), offset*7);
+  const sun = addDays(mon, 6);
+  const days = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
+
+  const weekLogs = S.logs.filter(l => l.date >= fmtDate(mon) && l.date <= fmtDate(sun));
+  const totalMin = weekLogs.reduce((a,b)=>a+b.dur,0);
+
+  return (
+    <div className="rise">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <div className="text-[15px] font-semibold">{deDate(mon)} — {deDate(sun)}</div>
+          <div className="text-[12px] text-[var(--text-3)]">{weekLogs.length} Einheiten · {totalMin} Min absolviert</div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={()=>setOffset(o=>o-1)} className="px-3 py-1.5 rounded-lg text-[12.5px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08]">← Zurück</button>
+          <button onClick={()=>setOffset(0)} className={`px-3 py-1.5 rounded-lg text-[12.5px] border ${offset===0 ? "bg-white text-black border-white" : "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08]"}`}>Heute</button>
+          <button onClick={()=>setOffset(o=>o+1)} className="px-3 py-1.5 rounded-lg text-[12.5px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08]">Vor →</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        {S.plan.template.map((p, i)=>{
+          const date = addDays(mon, i);
+          const ds = fmtDate(date);
+          const isToday = ds === todayStr();
+          const dlog = weekLogs.find(l => l.date === ds);
+          const done = !!dlog;
+          const exs = p.exerciseIds.map(id => S.exercises.find(e=>e.id===id)?.name).filter(Boolean);
+
+          return (
+            <div key={i} className={`card p-4 ${isToday ? "ring-1 ring-[var(--accent)]/40" : ""}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[11px] font-mono text-[var(--text-3)] uppercase tracking-wider">
+                    {days[i].slice(0,3).toUpperCase()} · {date.getDate()}.{date.getMonth()+1}
+                  </div>
+                  <div className="font-semibold text-[15px] mt-0.5">{p.name}</div>
+                </div>
+                {done ? (
+                  <span className="w-6 h-6 rounded-md bg-[var(--accent)] text-[var(--accent-ink)] flex items-center justify-center">
+                    <Icon name="check" className="w-3.5 h-3.5" stroke={2.6}/>
+                  </span>
+                ) : isToday ? (
+                  <span className="w-2 h-2 rounded-full bg-[var(--accent)] live-dot"></span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-2 mb-3">
+                <CatChip cat={p.cat}/>
+                {p.dur > 0 && <span className="text-[11.5px] text-[var(--text-3)] font-mono">{p.dur} min</span>}
+              </div>
+
+              {exs.length > 0 ? (
+                <ul className="space-y-1">
+                  {exs.map((n,j)=>(
+                    <li key={j} className="text-[12.5px] text-[var(--text-2)] flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-[var(--text-3)]"></span>
+                      <span className="truncate">{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-[12px] text-[var(--text-3)] italic">Erholung</div>
+              )}
+
+              {done && dlog && (
+                <div className="mt-3 pt-3 border-t border-white/[0.06] text-[11.5px] text-[var(--accent)] flex items-center gap-1.5 font-medium">
+                  <Icon name="check" className="w-3 h-3" stroke={2.4}/> {dlog.dur} min absolviert
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 4) ÜBUNGEN
+// ═════════════════════════════════════════════════════════════
+function Exercises(){
+  const { S, mut, notify } = useApp();
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+
+  const filtered = useMemo(()=>{
+    let arr = S.exercises;
+    if(filter !== "all") arr = arr.filter(e => e.cat === filter);
+    if(query.trim()) arr = arr.filter(e => e.name.toLowerCase().includes(query.toLowerCase()));
+    return arr;
+  }, [S.exercises, filter, query]);
+
+  return (
+    <div className="rise">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative">
+          <Icon name="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]"/>
+          <input
+            value={query} onChange={e=>setQuery(e.target.value)}
+            placeholder="Übung suchen…"
+            className="bg-white/[0.04] border border-white/[0.08] rounded-lg pl-9 pr-3 py-2 text-[13px] w-64 focus:outline-none focus:border-[var(--accent)]/60"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {["all", ...S.cats].map(f=>{
+            const active = filter===f;
+            return (
+              <button key={f} onClick={()=>setFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition border
+                  ${active ? "bg-white text-black border-white" : "bg-white/[0.04] text-[var(--text-2)] border-white/[0.08] hover:bg-white/[0.08]"}`}
+              >
+                {f==="all" ? "Alle" : f}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={()=>setAddOpen(true)} className="ml-auto bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold flex items-center gap-1.5 hover:brightness-95">
+          <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Übung
+        </button>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-3)] font-mono border-b border-white/[0.06]">
+          <div className="col-span-6">Übung</div>
+          <div className="col-span-2">Kategorie</div>
+          <div className="col-span-2">Muskel</div>
+          <div className="col-span-2 text-right">Zuletzt</div>
+        </div>
+        <div className="divide-y divide-white/[0.04]">
+          {filtered.map(e=>{
+            const daysAgo = e.lastDate ? Math.floor((Date.now() - new Date(e.lastDate).getTime())/86400000) : null;
+            return (
+              <div key={e.id} className="grid grid-cols-12 px-5 py-3.5 items-center hover:bg-white/[0.02] transition">
+                <div className="col-span-6 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-[var(--text-3)]">
+                    <Icon name="workout" className="w-3.5 h-3.5"/>
+                  </div>
+                  <div className="font-medium text-[14px]">{e.name}</div>
+                </div>
+                <div className="col-span-2"><CatChip cat={e.cat}/></div>
+                <div className="col-span-2 text-[13px] text-[var(--text-2)]">{e.muscle}</div>
+                <div className="col-span-2 text-right text-[12.5px] font-mono text-[var(--text-3)]">
+                  {daysAgo === null ? "—" : daysAgo === 0 ? "heute" : `vor ${daysAgo}T`}
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="py-10 text-center text-[var(--text-3)]">Keine Übungen gefunden.</div>
+          )}
+        </div>
+      </div>
+
+      {addOpen && (
+        <ExerciseModal onClose={()=>setAddOpen(false)} onSave={(payload)=>{
+          mut(s => { s.exercises.unshift({ id: uid(), lastDate: null, ...payload }); });
+          notify("Übung hinzugefügt");
+          setAddOpen(false);
+        }}/>
+      )}
+    </div>
+  );
+}
+
+function ExerciseModal({ onClose, onSave }){
+  const { S } = useApp();
+  const [name, setName] = useState("");
+  const [cat, setCat] = useState(S.cats[0]);
+  const [muscle, setMuscle] = useState(S.muscles[0]);
+  return (
+    <Modal onClose={onClose} title="Neue Übung" sub="Wird in der Bibliothek angelegt">
+      <Field label="Name">
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="z. B. Bulgarian Split Squat" className="apex-input"/>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Kategorie">
+          <select value={cat} onChange={e=>setCat(e.target.value)} className="apex-input">
+            {S.cats.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="Muskelgruppe">
+          <select value={muscle} onChange={e=>setMuscle(e.target.value)} className="apex-input">
+            {S.muscles.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+        </Field>
+      </div>
+      <ModalActions onClose={onClose} onSave={()=>name && onSave({ name, cat, muscle })} saveLabel="Übung speichern" disabled={!name}/>
+    </Modal>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 5) ERNÄHRUNG
+// ═════════════════════════════════════════════════════════════
+function Nutrition(){
+  const { S, mut, notify, todayMacros } = useApp();
+  const macros = todayMacros();
+  const [open, setOpen] = useState(false);
+
+  const water = S.water;
+  const waterGoal = S.nutritionGoals.water;
+
+  const adjustWater = (delta) => mut(s => { s.water = Math.max(0, +(s.water + delta).toFixed(1)); });
+
+  return (
+    <div className="rise">
+      {/* Top KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Stat label="kcal heute" value={macros.kcal.toLocaleString("de-DE")} suffix={`/ ${S.nutritionGoals.kcal}`} sub={`${Math.round(macros.kcal/S.nutritionGoals.kcal*100)} %`} accent="var(--blue)"/>
+        <Stat label="Protein" value={`${macros.p} g`} suffix={`/ ${S.nutritionGoals.p} g`} accent="var(--teal)"/>
+        <Stat label="Kohlenhydrate" value={`${macros.c} g`} suffix={`/ ${S.nutritionGoals.c} g`} accent="var(--accent)"/>
+        <Stat label="Fette" value={`${macros.f} g`} suffix={`/ ${S.nutritionGoals.f} g`} accent="var(--amber)"/>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3">
+        {/* Meals */}
+        <div className="col-span-12 lg:col-span-7 card p-6">
+          <SectionTitle title="Mahlzeiten heute" sub={`${S.meals.filter(m=>m.date===todayStr()).length} erfasst`}
+            action={
+              <button onClick={()=>setOpen(true)} className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3 py-1.5 text-[12.5px] font-semibold flex items-center gap-1.5 hover:brightness-95">
+                <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Mahlzeit
+              </button>
+            }
+          />
+          <div className="divide-y divide-white/[0.05]">
+            {S.meals.filter(m=>m.date===todayStr()).map(m=>(
+              <div key={m.id} className="py-3 flex items-center gap-4">
+                <div className="text-[11px] font-mono text-[var(--text-3)] w-12">{m.time}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-[14px]">{m.name}</div>
+                  <div className="text-[11.5px] text-[var(--text-3)] mt-0.5 font-mono">
+                    P {m.p}g · C {m.c}g · F {m.f}g
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[14px] tabular font-medium">{m.kcal}</div>
+                  <div className="text-[10.5px] text-[var(--text-3)] font-mono">kcal</div>
+                </div>
+              </div>
+            ))}
+            {S.meals.filter(m=>m.date===todayStr()).length === 0 && (
+              <div className="py-8 text-center text-[var(--text-3)] text-[13px]">Noch keine Mahlzeit heute erfasst.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="col-span-12 lg:col-span-5 space-y-3">
+          {/* Macros donut-ish */}
+          <div className="card p-6">
+            <SectionTitle title="Tagesziel" sub="Makros · Verteilung"/>
+            <div className="flex items-center gap-5">
+              <Ring value={Math.round(macros.kcal/S.nutritionGoals.kcal*100)} color="var(--blue)" size={104} stroke={9} label={`${macros.kcal}`} sub="kcal"/>
+              <div className="flex-1 space-y-3">
+                {[
+                  { l:"Protein",       v:macros.p, g:S.nutritionGoals.p, color:"var(--teal)" },
+                  { l:"Kohlenhydrate", v:macros.c, g:S.nutritionGoals.c, color:"var(--accent)" },
+                  { l:"Fette",         v:macros.f, g:S.nutritionGoals.f, color:"var(--amber)" },
+                ].map(r=>(
+                  <div key={r.l}>
+                    <div className="flex justify-between text-[12px] mb-1">
+                      <span className="text-[var(--text-2)]">{r.l}</span>
+                      <span className="tabular text-[var(--text-2)]"><span className="text-white">{r.v}</span> / {r.g} g</span>
+                    </div>
+                    <Bar value={r.v} max={r.g} color={r.color}/>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Water */}
+          <div className="card p-6">
+            <SectionTitle title="Wasser" sub={`${water.toFixed(1)} L / ${waterGoal} L`}/>
+            <div className="flex items-center gap-1.5 mb-3">
+              {Array.from({length:12}).map((_,i)=>{
+                const filled = i < Math.round((water/waterGoal)*12);
+                return <div key={i} className="flex-1 h-8 rounded-md" style={{ background: filled ? "var(--blue)" : "rgba(255,255,255,0.06)" }}/>
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={()=>adjustWater(-0.25)} className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[12.5px] flex items-center gap-1.5"><Icon name="minus" className="w-3.5 h-3.5"/>250ml</button>
+              <button onClick={()=>adjustWater(0.25)} className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[12.5px] flex items-center gap-1.5"><Icon name="plus" className="w-3.5 h-3.5"/>250ml</button>
+              <button onClick={()=>adjustWater(0.5)} className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[12.5px] flex items-center gap-1.5"><Icon name="plus" className="w-3.5 h-3.5"/>500ml</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <MealModal onClose={()=>setOpen(false)} onSave={(payload)=>{
+          mut(s => { s.meals.push({ id:uid(), date:todayStr(), ...payload }); });
+          notify("Mahlzeit erfasst");
+          setOpen(false);
+        }}/>
+      )}
+    </div>
+  );
+}
+
+function MealModal({ onClose, onSave }){
+  const [v, setV] = useState({ name:"", kcal:0, p:0, c:0, f:0, time: new Date().toTimeString().slice(0,5) });
+  const set = (k, val) => setV(s=>({ ...s, [k]:val }));
+  return (
+    <Modal onClose={onClose} title="Mahlzeit erfassen" sub="Wird zur heutigen Übersicht hinzugefügt">
+      <Field label="Beschreibung">
+        <input value={v.name} onChange={e=>set("name", e.target.value)} placeholder="z. B. Reis + Hähnchen + Brokkoli" className="apex-input"/>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="kcal"><input type="number" value={v.kcal} onChange={e=>set("kcal", +e.target.value)} className="apex-input"/></Field>
+        <Field label="Uhrzeit"><input type="time" value={v.time} onChange={e=>set("time", e.target.value)} className="apex-input"/></Field>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="Protein (g)"><input type="number" value={v.p} onChange={e=>set("p", +e.target.value)} className="apex-input"/></Field>
+        <Field label="Carbs (g)"><input type="number" value={v.c} onChange={e=>set("c", +e.target.value)} className="apex-input"/></Field>
+        <Field label="Fett (g)"><input type="number" value={v.f} onChange={e=>set("f", +e.target.value)} className="apex-input"/></Field>
+      </div>
+      <ModalActions onClose={onClose} onSave={()=>v.name && onSave(v)} disabled={!v.name} saveLabel="Mahlzeit speichern"/>
+    </Modal>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 6) SUPPLEMENTS
+// ═════════════════════════════════════════════════════════════
+function Supplements(){
+  const { S, mut, notify, suppCompliance } = useApp();
+  const c = suppCompliance();
+  const [open, setOpen] = useState(false);
+
+  const toggle = (id) => mut(s => {
+    const x = s.supplements.find(z=>z.id===id);
+    if(x) x.taken = !x.taken;
+  });
+
+  const low = S.supplements.filter(s=>s.stockDays<=14).sort((a,b)=>a.stockDays-b.stockDays);
+
+  return (
+    <div className="rise">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Stat label="Heute genommen" value={`${c.taken}/${c.total}`} sub={`${c.pct}% Compliance`} accent="var(--accent)"/>
+        <Stat label="Stack-Größe" value={S.supplements.length} sub={`${S.supplements.filter(s=>s.type==="training").length} Trainingstage`} accent="var(--blue)"/>
+        <Stat label="Nachkaufen" value={low.length} sub="bald leer" accent="var(--amber)"/>
+        <Stat label="Längster Vorrat" value={`${Math.max(...S.supplements.map(s=>s.stockDays))}T`} sub="bis Refill" accent="var(--teal)"/>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-12 lg:col-span-7 card p-6">
+          <SectionTitle title="Heutige Einnahme" sub={new Date().toLocaleDateString("de-DE",{ day:"numeric", month:"long" })}
+            action={
+              <button onClick={()=>setOpen(true)} className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3 py-1.5 text-[12.5px] font-semibold flex items-center gap-1.5 hover:brightness-95">
+                <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Supplement
+              </button>
+            }
+          />
+          <div className="space-y-1.5">
+            {S.supplements.map(s=>(
+              <div key={s.id} className="flex items-center gap-3 py-2.5 border-b border-white/[0.04] last:border-0">
+                <button
+                  onClick={()=>toggle(s.id)}
+                  className={`w-6 h-6 rounded-md border flex items-center justify-center transition shrink-0
+                    ${s.taken ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-ink)]":"border-white/15 hover:border-white/30"}`}
+                >
+                  {s.taken && <Icon name="check" className="w-3.5 h-3.5" stroke={2.6}/>}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-[14px] ${s.taken ? "":"font-medium"}`}>{s.name}</div>
+                  <div className="text-[11.5px] text-[var(--text-3)] font-mono">{s.dose} · {s.time}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[12.5px] tabular text-[var(--text-2)]">{s.stockDays}d</div>
+                  <div className="text-[10px] text-[var(--text-3)] font-mono uppercase">Vorrat</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="col-span-12 lg:col-span-5 space-y-3">
+          <div className="card p-6">
+            <SectionTitle title="Compliance · 7 Tage" sub={`Durchschnitt ${c.pct}%`}/>
+            <div className="flex gap-1.5 items-end h-[100px]">
+              {Array.from({length:7}).map((_,i)=>{
+                const pct = 60 + Math.random()*40;
+                return (
+                  <div key={i} className="flex-1 h-full flex flex-col items-center gap-1.5">
+                    <div className="flex-1 w-full flex items-end">
+                      <div className="w-full rounded-t-md bg-[var(--accent)]/80" style={{ height:`${pct}%` }}/>
+                    </div>
+                    <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">{["MO","DI","MI","DO","FR","SA","SO"][i]}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <SectionTitle title="Nachkaufen" sub={`${low.length} Produkte unter 14 Tagen`}/>
+            {low.length === 0 ? (
+              <div className="text-[13px] text-[var(--text-3)] py-2">Vorräte sind ausreichend.</div>
+            ) : (
+              <div className="space-y-2">
+                {low.map(s=>(
+                  <div key={s.id} className="flex items-center justify-between card-2 px-3 py-2.5">
+                    <div>
+                      <div className="text-[13.5px] font-medium">{s.name}</div>
+                      <div className="text-[11px] text-[var(--text-3)] font-mono">{s.dose} · {s.time}</div>
+                    </div>
+                    <span className={`text-[11px] font-mono px-2.5 py-1 rounded-md`}
+                      style={{
+                        background: s.stockDays <= 7 ? "color-mix(in srgb, var(--red) 15%, transparent)" : "color-mix(in srgb, var(--amber) 15%, transparent)",
+                        color: s.stockDays <= 7 ? "var(--red)" : "var(--amber)"
+                      }}
+                    >
+                      {s.stockDays <= 7 ? "Dringend" : "Bald leer"} · {s.stockDays}d
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <SuppModal onClose={()=>setOpen(false)} onSave={(p)=>{
+          mut(s => s.supplements.push({ id:uid(), taken:false, stockDays:30, type:"daily", ...p }));
+          notify("Supplement hinzugefügt");
+          setOpen(false);
+        }}/>
+      )}
+    </div>
+  );
+}
+
+function SuppModal({ onClose, onSave }){
+  const [v, setV] = useState({ name:"", dose:"", time:"Morgens", stockDays:30, type:"daily" });
+  const set = (k, val) => setV(s=>({ ...s, [k]:val }));
+  return (
+    <Modal onClose={onClose} title="Supplement hinzufügen" sub="Wird zum täglichen Stack ergänzt">
+      <Field label="Name">
+        <input value={v.name} onChange={e=>set("name", e.target.value)} className="apex-input" placeholder="z. B. Zink"/>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Dosierung"><input value={v.dose} onChange={e=>set("dose", e.target.value)} className="apex-input" placeholder="25 mg"/></Field>
+        <Field label="Uhrzeit">
+          <select value={v.time} onChange={e=>set("time", e.target.value)} className="apex-input">
+            {["Morgens","Mittags","Abends","Pre-Workout","Post-Workout"].map(o=><option key={o}>{o}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Vorrat (Tage)"><input type="number" value={v.stockDays} onChange={e=>set("stockDays", +e.target.value)} className="apex-input"/></Field>
+        <Field label="Frequenz">
+          <select value={v.type} onChange={e=>set("type", e.target.value)} className="apex-input">
+            <option value="daily">Täglich</option>
+            <option value="training">Nur Trainingstage</option>
+          </select>
+        </Field>
+      </div>
+      <ModalActions onClose={onClose} onSave={()=>v.name && onSave(v)} disabled={!v.name} saveLabel="Hinzufügen"/>
+    </Modal>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 7) INSIGHTS
+// ═════════════════════════════════════════════════════════════
+function Insights({ go }){
+  const { S, thisWeekLogs, suppCompliance, bestExercise } = useApp();
+  const wk = thisWeekLogs();
+  const c = suppCompliance();
+  const best = bestExercise();
+
+  // Frequency 8 weeks
+  const freq = Array.from({length:8}).map((_,i)=>{
+    const mon = addDays(weekMonday(), -((7-i)*7));
+    const sun = addDays(mon, 6);
+    const count = S.logs.filter(l=>l.date >= fmtDate(mon) && l.date <= fmtDate(sun)).length;
+    return { wk: `KW${Math.ceil((((mon - new Date(mon.getFullYear(),0,1))/86400000) + new Date(mon.getFullYear(),0,1).getDay()+1)/7)}`, count };
+  });
+  const fmax = Math.max(5, ...freq.map(f=>f.count));
+
+  // Neglected muscles
+  const mcounts = useMemo(()=>{
+    const cs = {};
+    S.logs.slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,10).forEach(l=>{
+      l.exerciseIds.forEach(eid=>{
+        const ex = S.exercises.find(e=>e.id===eid);
+        if(ex) cs[ex.muscle] = (cs[ex.muscle]||0)+1;
+      });
+    });
+    return cs;
+  }, [S.logs, S.exercises]);
+  const neglected = S.muscles.map(m => ({ m, c: mcounts[m]||0 })).sort((a,b)=>a.c-b.c).slice(0,5);
+
+  // Top exercises
+  const exCount = {};
+  wk.forEach(l => l.exerciseIds.forEach(id => exCount[id] = (exCount[id]||0)+1));
+  const topEx = Object.entries(exCount).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id,n])=>({
+    ex: S.exercises.find(e=>e.id===id),
+    n
+  })).filter(x=>x.ex);
+
+  return (
+    <div className="rise">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Stat label="Streak" value={S.streak} suffix="Tage"/>
+        <Stat label="Compliance" value={`${c.pct}%`} sub="Supplements" accent="var(--blue)"/>
+        <Stat label="Ø Einheiten" value={(freq.reduce((a,b)=>a+b.count,0)/8).toFixed(1)} suffix="/ Woche" accent="var(--amber)"/>
+        <Stat label="Volumen Woche" value={wk.reduce((a,b)=>a+b.dur,0)} suffix="Min" accent="var(--teal)"/>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3 mb-3">
+        {/* Frequency chart */}
+        <div className="col-span-12 lg:col-span-7 card p-6">
+          <SectionTitle title="Trainingsfrequenz" sub="Letzte 8 Wochen"/>
+          <div className="flex items-end gap-2 h-[180px]">
+            {freq.map((f,i)=>(
+              <div key={i} className="flex-1 h-full flex flex-col items-center gap-2">
+                <div className="flex-1 w-full flex items-end justify-center">
+                  <div className="w-full max-w-[40px] rounded-t-md transition-all"
+                    style={{
+                      height:`${(f.count/fmax)*100}%`,
+                      background: i===freq.length-1 ? "var(--accent)" : "rgba(255,255,255,0.16)",
+                      minHeight: f.count > 0 ? 4 : 2,
+                    }}
+                  />
+                </div>
+                <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">{f.wk}</div>
+                <div className="text-[11px] tabular text-[var(--text-2)]">{f.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Best exercise */}
+        <div className="col-span-12 lg:col-span-5 card p-6">
+          <SectionTitle title="Stärkster Zuwachs" sub="Letzte Monate"/>
+          {best ? (
+            <>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[12px] text-[var(--text-3)] font-mono uppercase tracking-wider">Übung</div>
+                  <div className="text-[20px] font-semibold mt-1">{best.name}</div>
+                </div>
+                <span className="text-[11px] font-mono px-2.5 py-1 rounded-md bg-[var(--accent)]/15 text-[var(--accent)] flex items-center gap-1">
+                  <Icon name="trend" className="w-3 h-3"/> +{best.delta} kg
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="card-2 p-3">
+                  <div className="text-[10.5px] font-mono text-[var(--text-3)] uppercase">Davor</div>
+                  <div className="text-[16px] font-medium tabular mt-1">{best.first.weight} kg × {best.first.reps}</div>
+                  <div className="text-[10.5px] text-[var(--text-3)] mt-0.5 font-mono">{best.first.date}</div>
+                </div>
+                <div className="card-2 p-3 border-[var(--accent)]/30" style={{ borderColor:"color-mix(in srgb, var(--accent) 30%, transparent)" }}>
+                  <div className="text-[10.5px] font-mono text-[var(--accent)] uppercase">Aktuell</div>
+                  <div className="text-[16px] font-medium tabular mt-1">{best.last.weight} kg × {best.last.reps}</div>
+                  <div className="text-[10.5px] text-[var(--text-3)] mt-0.5 font-mono">{best.last.date}</div>
+                </div>
+              </div>
+            </>
+          ) : <div className="text-[var(--text-3)] text-[13px]">Mehr Daten nötig.</div>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-12 lg:col-span-5 card p-6">
+          <SectionTitle title="Vernachlässigt" sub="Letzte 10 Einheiten"/>
+          <div className="space-y-2">
+            {neglected.map(n=>(
+              <div key={n.m} className="flex items-center justify-between card-2 px-3.5 py-2.5">
+                <div className="text-[14px]">{n.m}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-[11px] font-mono text-[var(--text-3)]">{n.c}× in 10 Einheiten</div>
+                  {n.c === 0 && <span className="text-[10px] font-mono px-2 py-0.5 rounded-md" style={{ background:"color-mix(in srgb, var(--red) 12%, transparent)", color:"var(--red)" }}>0</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="col-span-12 lg:col-span-4 card p-6">
+          <SectionTitle title="Top Übungen" sub="Diese Woche"/>
+          <div className="space-y-2">
+            {topEx.length === 0 && <div className="text-[13px] text-[var(--text-3)] py-2">Keine Daten diese Woche.</div>}
+            {topEx.map(t=>(
+              <div key={t.ex.id} className="flex items-center justify-between card-2 px-3.5 py-2.5">
+                <div>
+                  <div className="text-[13.5px] font-medium">{t.ex.name}</div>
+                  <CatChip cat={t.ex.cat}/>
+                </div>
+                <div className="text-right">
+                  <div className="text-[14px] font-semibold tabular">{t.n}×</div>
+                  <div className="text-[10.5px] text-[var(--text-3)] font-mono">Woche</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="col-span-12 lg:col-span-3 card p-6">
+          <SectionTitle title="Nächste Ziele"/>
+          <div className="space-y-2">
+            {S.goals.map(g=>(
+              <div key={g.id} className="card-2 p-3">
+                <div className="flex items-start gap-2.5">
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border ${g.done ? "bg-[var(--accent)] border-[var(--accent)]" : "border-white/20"}`}></div>
+                  <div className="flex-1">
+                    <div className="text-[13px] font-medium">{g.name}</div>
+                    <div className="text-[11px] text-[var(--text-3)] mt-0.5 font-mono">{g.current} · {g.eta}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 8) PROGRESS — Gewicht, Kraft, PRs
+// ═════════════════════════════════════════════════════════════
+function Progress(){
+  const { S } = useApp();
+  const [exId, setExId] = useState(Object.keys(S.sets)[0]);
+  const sets = S.sets[exId] || [];
+  const ex = S.exercises.find(e=>e.id===exId);
+
+  // PR row
+  const prRow = useMemo(()=>{
+    return Object.entries(S.sets).map(([id, arr])=>{
+      const top = arr.slice().sort((a,b)=>b.weight-a.weight)[0];
+      return { ex: S.exercises.find(e=>e.id===id), top };
+    }).filter(x=>x.ex && x.top).slice(0,4);
+  }, [S.sets]);
+
+  // Body weight trend
+  const bw = S.bodyWeight;
+  const minW = Math.min(...bw.map(p=>p.w)) - 0.5;
+  const maxW = Math.max(...bw.map(p=>p.w)) + 0.5;
+
+  // Sets-chart for selected exercise
+  const setMax = sets.length ? Math.max(...sets.map(s=>s.weight))+2 : 100;
+
+  return (
+    <div className="rise">
+      {/* PR Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {prRow.map(p=>(
+          <div key={p.ex.id} className="card p-5">
+            <div className="text-[10.5px] font-mono uppercase tracking-[0.14em] text-[var(--text-3)] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span> PR
+            </div>
+            <div className="text-[13.5px] font-medium mt-1.5 truncate">{p.ex.name}</div>
+            <div className="text-[22px] font-bold tabular mt-2">{p.top.weight} kg <span className="text-[14px] text-[var(--text-3)] font-mono">× {p.top.reps}</span></div>
+            <div className="text-[10.5px] font-mono text-[var(--text-3)] mt-1">{p.top.date}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-12 gap-3 mb-3">
+        {/* Strength chart */}
+        <div className="col-span-12 lg:col-span-8 card p-6">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-[11px] font-mono uppercase text-[var(--text-3)] tracking-wider">Kraftverlauf</div>
+              <div className="text-[18px] font-semibold mt-1">{ex?.name}</div>
+            </div>
+            <select value={exId} onChange={e=>setExId(e.target.value)} className="apex-input max-w-[220px]">
+              {Object.keys(S.sets).map(id=>{
+                const e = S.exercises.find(x=>x.id===id);
+                return <option key={id} value={id}>{e?.name}</option>;
+              })}
+            </select>
+          </div>
+
+          {/* Line chart */}
+          <div className="relative h-[220px]">
+            <svg className="w-full h-full" viewBox="0 0 600 220" preserveAspectRatio="none">
+              {/* gridlines */}
+              {[0,0.25,0.5,0.75,1].map((t,i)=>(
+                <line key={i} x1="0" y1={t*200+10} x2="600" y2={t*200+10} stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
+              ))}
+              {(() => {
+                if(sets.length < 2) return null;
+                const xs = sets.map((_,i)=> (i/(sets.length-1))*580 + 10);
+                const minWv = Math.min(...sets.map(s=>s.weight)) - 2;
+                const maxWv = Math.max(...sets.map(s=>s.weight)) + 2;
+                const range = Math.max(1, maxWv - minWv);
+                const ys = sets.map(s=> 210 - ((s.weight - minWv)/range)*190);
+                const d = xs.map((x,i)=> `${i===0?"M":"L"} ${x} ${ys[i]}`).join(" ");
+                const area = `M ${xs[0]} 210 L ` + xs.map((x,i)=>`${x} ${ys[i]}`).join(" L ") + ` L ${xs[xs.length-1]} 210 Z`;
+                return (
+                  <>
+                    <defs>
+                      <linearGradient id="strokeGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.35"/>
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <path d={area} fill="url(#strokeGrad)"/>
+                    <path d={d} stroke="var(--accent)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    {sets.map((s,i)=>(
+                      <g key={i}>
+                        <circle cx={xs[i]} cy={ys[i]} r={s.pr ? 6 : 4} fill={s.pr ? "var(--accent)" : "var(--bg)"} stroke="var(--accent)" strokeWidth="2"/>
+                        {s.pr && <text x={xs[i]} y={ys[i]-14} textAnchor="middle" className="text-[10px] fill-[var(--accent)] font-mono" fontSize="10">PR</text>}
+                      </g>
+                    ))}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+
+          {/* Sets table */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--text-3)] font-mono">
+                  <th className="text-left font-normal py-2">Datum</th>
+                  <th className="text-right font-normal">Gewicht</th>
+                  <th className="text-right font-normal">Wdh</th>
+                  <th className="text-right font-normal">RPE</th>
+                  <th className="text-right font-normal">e1RM</th>
+                  <th className="text-right font-normal">PR</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.05]">
+                {sets.slice().reverse().map((s,i)=>{
+                  const e1rm = +(s.weight * (1 + s.reps/30)).toFixed(1);
+                  return (
+                    <tr key={i}>
+                      <td className="py-2.5 font-mono text-[12.5px] text-[var(--text-2)]">{s.date}</td>
+                      <td className="text-right tabular font-medium">{s.weight} kg</td>
+                      <td className="text-right tabular text-[var(--text-2)]">{s.reps}</td>
+                      <td className="text-right tabular text-[var(--text-2)]">{s.rpe}</td>
+                      <td className="text-right tabular text-[var(--text-2)]">{e1rm} kg</td>
+                      <td className="text-right">{s.pr ? <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">PR</span> : ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Body weight */}
+        <div className="col-span-12 lg:col-span-4 card p-6">
+          <SectionTitle title="Körpergewicht" sub="Letzte Messungen"/>
+          <div className="text-[36px] font-bold tabular leading-none">{bw[bw.length-1].w}<span className="text-[16px] text-[var(--text-3)] font-mono ml-1">kg</span></div>
+          <div className="text-[12px] mt-1 flex items-center gap-1.5">
+            <span className="text-[var(--accent)] font-medium">+{(bw[bw.length-1].w - bw[0].w).toFixed(1)} kg</span>
+            <span className="text-[var(--text-3)]">seit {deDate(bw[0].d)}</span>
+          </div>
+
+          <div className="mt-5 relative h-[140px]">
+            <svg className="w-full h-full" viewBox="0 0 300 140" preserveAspectRatio="none">
+              {(() => {
+                const xs = bw.map((_,i)=> (i/(bw.length-1))*280 + 10);
+                const ys = bw.map(p => 130 - ((p.w - minW)/(maxW-minW))*120);
+                const d = xs.map((x,i)=>`${i===0?"M":"L"} ${x} ${ys[i]}`).join(" ");
+                return (
+                  <>
+                    <path d={d} stroke="var(--teal)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                    {xs.map((x,i)=>(
+                      <circle key={i} cx={x} cy={ys[i]} r="3" fill="var(--bg)" stroke="var(--teal)" strokeWidth="2"/>
+                    ))}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="card-2 p-2.5">
+              <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">Min</div>
+              <div className="text-[14px] font-medium tabular mt-0.5">{Math.min(...bw.map(p=>p.w))}</div>
+            </div>
+            <div className="card-2 p-2.5">
+              <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">Ø</div>
+              <div className="text-[14px] font-medium tabular mt-0.5">{(bw.reduce((a,b)=>a+b.w,0)/bw.length).toFixed(1)}</div>
+            </div>
+            <div className="card-2 p-2.5">
+              <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">Max</div>
+              <div className="text-[14px] font-medium tabular mt-0.5">{Math.max(...bw.map(p=>p.w))}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 9) KATEGORIEN
+// ═════════════════════════════════════════════════════════════
+function Categories(){
+  const { S, mut, notify } = useApp();
+  const [newCat, setNewCat] = useState("");
+  const [newMus, setNewMus] = useState("");
+
+  const addCat = () => {
+    if(!newCat.trim()) return;
+    mut(s => { if(!s.cats.includes(newCat)) s.cats.push(newCat); });
+    notify("Kategorie hinzugefügt");
+    setNewCat("");
+  };
+  const addMus = () => {
+    if(!newMus.trim()) return;
+    mut(s => { if(!s.muscles.includes(newMus)) s.muscles.push(newMus); });
+    notify("Muskelgruppe hinzugefügt");
+    setNewMus("");
+  };
+
+  return (
+    <div className="rise grid grid-cols-12 gap-3">
+      <div className="col-span-12 lg:col-span-6 card p-6">
+        <SectionTitle title="Trainingskategorien" sub={`${S.cats.length} Kategorien`}/>
+        <div className="flex gap-2 mb-4">
+          <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Neue Kategorie" className="apex-input flex-1"/>
+          <button onClick={addCat} className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3 py-2 text-[12.5px] font-semibold flex items-center gap-1.5">
+            <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Hinzufügen
+          </button>
+        </div>
+        <div className="space-y-2">
+          {S.cats.map(c=>{
+            const count = S.exercises.filter(e=>e.cat===c).length;
+            return (
+              <div key={c} className="flex items-center justify-between card-2 px-3.5 py-3">
+                <div className="flex items-center gap-3">
+                  <CatChip cat={c}/>
+                  <div className="text-[13.5px]">{c}</div>
+                </div>
+                <div className="text-[11px] font-mono text-[var(--text-3)]">{count} Übungen</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="col-span-12 lg:col-span-6 card p-6">
+        <SectionTitle title="Muskelgruppen" sub={`${S.muscles.length} Gruppen`}/>
+        <div className="flex gap-2 mb-4">
+          <input value={newMus} onChange={e=>setNewMus(e.target.value)} placeholder="Neue Muskelgruppe" className="apex-input flex-1"/>
+          <button onClick={addMus} className="bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg px-3 py-2 text-[12.5px] font-semibold flex items-center gap-1.5">
+            <Icon name="plus" className="w-3.5 h-3.5" stroke={2.4}/> Hinzufügen
+          </button>
+        </div>
+        <div className="space-y-2">
+          {S.muscles.map(m=>{
+            const count = S.exercises.filter(e=>e.muscle===m).length;
+            return (
+              <div key={m} className="flex items-center justify-between card-2 px-3.5 py-3">
+                <div className="text-[13.5px]">{m}</div>
+                <div className="text-[11px] font-mono text-[var(--text-3)]">{count} Übungen</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── MODALS — GENERIC ─────────────────────────
+function Modal({ children, onClose, title, sub, size="md" }){
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center px-3 py-6">
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose}></div>
+      <div className={`relative w-full ${size==="lg" ? "max-w-2xl":"max-w-lg"} card p-6 lg:p-7 shadow-2xl rise max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            {title && <div className="text-[18px] font-semibold tracking-tight">{title}</div>}
+            {sub && <div className="text-[12.5px] text-[var(--text-3)] mt-0.5">{sub}</div>}
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center text-[var(--text-2)]">
+            <Icon name="x" className="w-4 h-4"/>
+          </button>
+        </div>
+        <div className="space-y-3">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }){
+  return (
+    <div>
+      <div className="text-[10.5px] font-mono uppercase tracking-[0.14em] text-[var(--text-3)] mb-1.5">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function ModalActions({ onClose, onSave, saveLabel="Speichern", disabled }){
+  return (
+    <div className="flex items-center justify-end gap-2 pt-3 mt-2">
+      <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[13px]">Abbrechen</button>
+      <button onClick={onSave} disabled={disabled}
+        className={`px-4 py-2 rounded-lg text-[13px] font-semibold flex items-center gap-2 transition
+          ${disabled ? "bg-white/[0.05] text-[var(--text-3)] cursor-not-allowed" : "bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-95"}`}>
+        {saveLabel} <Icon name="arrow" className="w-3.5 h-3.5" stroke={2.4}/>
+      </button>
+    </div>
+  );
+}
+
+// ───────────────────────── TRAINING LOG MODAL (Tracker) ─────────────────────────
+function LogModal({ onClose }){
+  const { S, mut, notify } = useApp();
+  const [step, setStep] = useState(1);
+  const [date, setDate] = useState(todayStr());
+  const [name, setName] = useState("");
+  const [cat, setCat] = useState(S.cats[0]);
+  const [dur, setDur] = useState(60);
+  const [picked, setPicked] = useState([]); // exerciseIds
+  // sets[exId] = [{weight, reps, rpe, pr}]
+  const [sets, setSets] = useState({});
+  const [notes, setNotes] = useState("");
+
+  const togglePick = (id) => {
+    setPicked(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]);
+    setSets(s => s[id] ? s : { ...s, [id]: [{ weight:0, reps:0, rpe:8, pr:false }] });
+  };
+
+  const addSet = (id) => setSets(s => ({ ...s, [id]: [...(s[id]||[]), { weight:0, reps:0, rpe:8, pr:false }] }));
+  const removeSet = (id, i) => setSets(s => ({ ...s, [id]: s[id].filter((_,j)=>j!==i) }));
+  const updateSet = (id, i, k, v) => setSets(s => ({
+    ...s,
+    [id]: s[id].map((row,j)=> j===i ? { ...row, [k]: v } : row)
+  }));
+
+  const save = () => {
+    const id = uid();
+    const newLog = { id, date, name: name || `${cat} Training`, cat, dur: +dur, exerciseIds: picked, notes };
+    mut(s => {
+      s.logs.unshift(newLog);
+      // commit sets to S.sets (append history entries)
+      picked.forEach(eid => {
+        const arr = sets[eid] || [];
+        if(!s.sets[eid]) s.sets[eid] = [];
+        arr.forEach(row => {
+          if(row.weight > 0 || row.reps > 0){
+            s.sets[eid].push({ date, weight:+row.weight, reps:+row.reps, rpe:+row.rpe, pr:!!row.pr });
+          }
+        });
+        const ex = s.exercises.find(e=>e.id===eid);
+        if(ex && (!ex.lastDate || date > ex.lastDate)) ex.lastDate = date;
+      });
+    });
+    notify("Einheit gespeichert");
+    onClose();
+  };
+
+  const filteredEx = S.exercises.filter(e => e.cat === cat);
+  const allEx = S.exercises;
+
+  return (
+    <Modal onClose={onClose} title="Neue Einheit" sub="Trainingstracker · Sätze, Gewichte, RPE" size="lg">
+      {/* Steps */}
+      <div className="flex items-center gap-2 mb-3 text-[11px] font-mono uppercase tracking-wider">
+        {[1,2,3].map(n=>(
+          <div key={n} className={`flex items-center gap-2 ${step===n ? "text-white":"text-[var(--text-3)]"}`}>
+            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] ${step===n ? "bg-[var(--accent)] text-[var(--accent-ink)]":"bg-white/[0.05]"}`}>{n}</span>
+            <span>{n===1?"Basis":n===2?"Übungen":"Sätze"}</span>
+            {n<3 && <span className="text-[var(--text-3)]">·</span>}
+          </div>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Datum"><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="apex-input"/></Field>
+            <Field label="Kategorie">
+              <select value={cat} onChange={e=>setCat(e.target.value)} className="apex-input">{S.cats.map(c=><option key={c}>{c}</option>)}</select>
+            </Field>
+          </div>
+          <Field label="Name (optional)"><input value={name} onChange={e=>setName(e.target.value)} placeholder={`z. B. ${cat} A`} className="apex-input"/></Field>
+          <Field label="Dauer (Minuten)"><input type="number" min="0" value={dur} onChange={e=>setDur(e.target.value)} className="apex-input"/></Field>
+          <Field label="Notizen"><textarea rows="2" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Wie war's? Schmerzen? Fokus?" className="apex-input resize-none"/></Field>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <div className="text-[12.5px] text-[var(--text-2)] mb-2">Übungen für <span className="font-medium text-white">{cat}</span> auswählen. ({picked.length} gewählt)</div>
+          <div className="max-h-[260px] overflow-y-auto pr-1 space-y-1.5">
+            {[...filteredEx, ...allEx.filter(e=>e.cat!==cat)].map(e=>{
+              const on = picked.includes(e.id);
+              const fromCat = e.cat === cat;
+              return (
+                <button key={e.id} onClick={()=>togglePick(e.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition text-left
+                    ${on ? "bg-[var(--accent)]/10 border-[var(--accent)]/40" : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"}`}>
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${on ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-ink)]":"border-white/15"}`}>
+                    {on && <Icon name="check" className="w-3 h-3" stroke={2.6}/>}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[13.5px]">{e.name}</div>
+                    <div className="text-[10.5px] text-[var(--text-3)] font-mono">{e.muscle}</div>
+                  </div>
+                  {!fromCat && <span className="text-[10px] font-mono text-[var(--text-3)] uppercase">{e.cat}</span>}
+                  <CatChip cat={e.cat}/>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+          {picked.length === 0 && <div className="text-[var(--text-3)] text-[13px]">Keine Übungen gewählt. Zurück zu Schritt 2.</div>}
+          {picked.map(eid=>{
+            const ex = S.exercises.find(e=>e.id===eid);
+            const rows = sets[eid] || [];
+            return (
+              <div key={eid} className="card-2 p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-[14px] font-medium">{ex.name}</div>
+                    <div className="text-[10.5px] font-mono text-[var(--text-3)]">{ex.muscle}</div>
+                  </div>
+                  <button onClick={()=>addSet(eid)} className="text-[11px] font-mono bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.08] rounded-md px-2 py-1 flex items-center gap-1">
+                    <Icon name="plus" className="w-3 h-3" stroke={2.4}/> Satz
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-12 gap-2 text-[10px] font-mono uppercase tracking-wider text-[var(--text-3)] px-1">
+                    <div className="col-span-1">#</div>
+                    <div className="col-span-3">Gewicht</div>
+                    <div className="col-span-2">Wdh</div>
+                    <div className="col-span-2">RPE</div>
+                    <div className="col-span-2">PR</div>
+                    <div className="col-span-2 text-right"></div>
+                  </div>
+                  {rows.map((r,i)=>(
+                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-1 text-[12px] font-mono text-[var(--text-3)] text-center">{i+1}</div>
+                      <div className="col-span-3">
+                        <div className="relative">
+                          <input type="number" value={r.weight} onChange={e=>updateSet(eid,i,"weight", +e.target.value)} className="apex-input text-[13px] pr-7"/>
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[var(--text-3)]">kg</span>
+                        </div>
+                      </div>
+                      <div className="col-span-2"><input type="number" value={r.reps} onChange={e=>updateSet(eid,i,"reps", +e.target.value)} className="apex-input text-[13px]"/></div>
+                      <div className="col-span-2"><input type="number" step="0.5" min="1" max="10" value={r.rpe} onChange={e=>updateSet(eid,i,"rpe", +e.target.value)} className="apex-input text-[13px]"/></div>
+                      <div className="col-span-2">
+                        <button
+                          onClick={()=>updateSet(eid,i,"pr", !r.pr)}
+                          className={`w-full px-2 py-1.5 rounded-md text-[11px] font-mono uppercase border transition
+                            ${r.pr ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-white/[0.03] border-white/[0.08] hover:border-white/20"}`}
+                        >PR</button>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <button onClick={()=>removeSet(eid,i)} className="text-[var(--text-3)] hover:text-[var(--red)]"><Icon name="trash" className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/[0.05]">
+        {step > 1 ? (
+          <button onClick={()=>setStep(step-1)} className="px-4 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[13px]">← Zurück</button>
+        ) : <span/>}
+        {step < 3 ? (
+          <button onClick={()=>setStep(step+1)} className="bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg text-[13px] font-semibold flex items-center gap-2">
+            Weiter <Icon name="arrow" className="w-3.5 h-3.5" stroke={2.4}/>
+          </button>
+        ) : (
+          <button onClick={save} className="bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg text-[13px] font-semibold flex items-center gap-2">
+            Einheit speichern <Icon name="check" className="w-3.5 h-3.5" stroke={2.4}/>
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ───────────────────────── LOG DETAIL ─────────────────────────
+function LogDetail({ log, onClose }){
+  const { S } = useApp();
+  if(!log) return null;
+  const exs = log.exerciseIds.map(id=>S.exercises.find(e=>e.id===id)).filter(Boolean);
+  return (
+    <Modal onClose={onClose} title={log.name} sub={`${new Date(log.date).toLocaleDateString("de-DE", { weekday:"long", day:"numeric", month:"long", year:"numeric"})} · ${log.dur} Min`}>
+      <div className="flex items-center gap-2 mb-3">
+        <CatChip cat={log.cat}/>
+        <span className="text-[12px] text-[var(--text-3)]">{exs.length} Übungen</span>
+      </div>
+      <div className="space-y-2">
+        {exs.map(e=>{
+          const rows = (S.sets[e.id]||[]).filter(s=>s.date === log.date);
+          return (
+            <div key={e.id} className="card-2 p-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[13.5px] font-medium">{e.name}</div>
+                  <div className="text-[10.5px] font-mono text-[var(--text-3)]">{e.muscle}</div>
+                </div>
+                <div className="text-[11px] font-mono text-[var(--text-3)]">{rows.length} Sätze</div>
+              </div>
+              {rows.length > 0 && (
+                <div className="mt-2 grid grid-cols-4 gap-1.5 text-[11.5px] font-mono">
+                  {rows.map((r,i)=>(
+                    <div key={i} className={`px-2 py-1.5 rounded-md border ${r.pr ? "bg-[var(--accent)]/10 border-[var(--accent)]/30 text-[var(--accent)]":"bg-white/[0.03] border-white/[0.06] text-[var(--text-2)]"}`}>
+                      {r.weight}kg × {r.reps}{r.pr && " · PR"}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {log.notes && (
+        <div className="card-2 p-3.5 mt-3">
+          <div className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--text-3)] mb-1">Notizen</div>
+          <div className="text-[13px] italic text-[var(--text-2)]">"{log.notes}"</div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ───────────────────────── QUICK ADD ─────────────────────────
+function QuickAdd({ open, onClose, goTo, openLog }){
+  if(!open) return null;
+  return (
+    <Modal onClose={onClose} title="Quick Add" sub="Schnellzugriff">
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { l:"Einheit erfassen", i:"workout",   a:()=>{ onClose(); openLog(); } },
+          { l:"Mahlzeit",         i:"nutrition", a:()=>{ goTo("nutrition"); onClose(); } },
+          { l:"Wasser +250ml",    i:"drop",      a:()=>{ goTo("nutrition"); onClose(); } },
+          { l:"Supplements",      i:"supp",      a:()=>{ goTo("supplements"); onClose(); } },
+          { l:"Übung anlegen",    i:"list",      a:()=>{ goTo("exercises"); onClose(); } },
+          { l:"Wochenplan",       i:"calendar",  a:()=>{ goTo("plan"); onClose(); } },
+        ].map(b=>(
+          <button key={b.l} onClick={b.a}
+            className="card-2 p-4 flex flex-col items-start gap-2 hover:bg-white/[0.05] transition text-left">
+            <span className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center">
+              <Icon name={b.i} className="w-4 h-4"/>
+            </span>
+            <span className="text-[13.5px] font-medium">{b.l}</span>
+          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+// ───────────────────────── ROOT APP ─────────────────────────
+function App(){
+  const [view, setView] = useState("dashboard");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [logDetail, setLogDetail] = useState(null);
+
+  // Apply tailwind input class via global once
+  useEffect(()=>{
+    if(!document.getElementById("apex-input-style")){
+      const s = document.createElement("style");
+      s.id = "apex-input-style";
+      s.textContent = `
+        .apex-input{
+          width:100%;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 10px;
+          padding: 9px 12px;
+          font-size: 13.5px;
+          color: var(--text);
+          outline:none;
+          transition: border-color .15s, background .15s;
+          font-family: inherit;
+        }
+        .apex-input:focus{
+          border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+          background: rgba(255,255,255,0.06);
+        }
+        .apex-input::placeholder{ color: var(--text-3); }
+      `;
+      document.head.appendChild(s);
+    }
+  },[]);
+
+  // ⌘K toggles quick add
+  useEffect(()=>{
+    const onKey = (e) => {
+      if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); setQuickOpen(o=>!o); }
+      if(e.key === "Escape"){ setQuickOpen(false); setLogOpen(false); setLogDetail(null); }
+    };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[]);
+
+  // scroll to top on view change
+  useEffect(()=>{ document.querySelector("main")?.scrollTo({ top:0, behavior:"smooth" }); }, [view]);
+
+  return (
+    <AppProvider>
+      <div className="flex min-h-screen">
+        <Sidebar view={view} setView={setView} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}/>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <TopBar view={view} setMobileOpen={setMobileOpen} onQuickAdd={()=>setQuickOpen(true)}/>
+          <main className="flex-1 overflow-y-auto px-4 lg:px-8 py-6 pb-24 max-w-[1400px] w-full">
+            {view==="dashboard"   && <Dashboard go={setView} onQuickAdd={()=>setQuickOpen(true)} openLog={()=>setLogOpen(true)}/>}
+            {view==="workouts"    && <Workouts openLog={()=>setLogOpen(true)} openLogDetail={(l)=>setLogDetail(l)}/>}
+            {view==="plan"        && <Plan/>}
+            {view==="exercises"   && <Exercises/>}
+            {view==="nutrition"   && <Nutrition/>}
+            {view==="supplements" && <Supplements/>}
+            {view==="insights"    && <Insights go={setView}/>}
+            {view==="progress"    && <Progress/>}
+            {view==="categories"  && <Categories/>}
+          </main>
+        </div>
+
+        {logOpen && <LogModal onClose={()=>setLogOpen(false)}/>}
+        {logDetail && <LogDetail log={logDetail} onClose={()=>setLogDetail(null)}/>}
+        <QuickAdd open={quickOpen} onClose={()=>setQuickOpen(false)} goTo={setView} openLog={()=>setLogOpen(true)}/>
+      </div>
+    </AppProvider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
